@@ -54,6 +54,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     public InputManager inputManager;
     public ModelIntegrationManager modelIntegrationManager;
     public UnityAction OnCompensatedFixedIntervalElapsed;
+    public const string DUMMY_RESPONSE = "dummy";
 
     void Start()
     {
@@ -257,14 +258,13 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     void PredictLowerPose()
     {
         modelIntegrationManager.SendFrame(input_list);
-        if (frames.Count < window_size)
+        string response = modelIntegrationManager.ReceiveFrame();
+        if(response == DUMMY_RESPONSE)
         {
-            modelIntegrationManager.ReceiveFrame();
+            Debug.Log(response);
             return;
         }
-
-        string response = modelIntegrationManager.ReceiveFrame();
-
+        
         ManipulateCharacter(response);
 
         try
