@@ -10,7 +10,6 @@ using System.Text;
 public partial class NetworkClient : ThingWithAvatarHiarchy
 {
     private bool calibrated = false;
-    private string input_list;
 
     [SerializeField]
     Transform hmd, l_controller, r_controller, l_tracker, r_tracker; // 트래커 추가
@@ -119,7 +118,9 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         UpdateTrackersOffset();
         CollectFrame();
         LinearSmoothing();
-        input_list = GenerateInput();
+        modelIntegrationManager.SendFrame(GenerateInput());
+        string response = modelIntegrationManager.ReceiveFrame();
+        if (response == DUMMY_RESPONSE) return;
 
         if (frames.Count < window_size) return;
         if (draw_input_gizmos)
@@ -132,7 +133,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             DrawInputTransform(r_tracker.position, r_tracker.rotation);
         }
 
-        PredictLowerPose();
+        PredictLowerPose(response);
     }
 
     // 조건1 : hmd와 controller 사이의 거리
@@ -256,16 +257,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     }
     public string GenerateInput() => SerializeLastFrame();
 
-    void PredictLowerPose()
+    void PredictLowerPose(string response)
     {
-        modelIntegrationManager.SendFrame(input_list);
-        string response = modelIntegrationManager.ReceiveFrame();
-        if(response == DUMMY_RESPONSE)
-        {
-            Debug.Log(response);
-            return;
-        }
-        
         ManipulateCharacter(response);
 
         try
@@ -311,26 +304,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         }
     }
 
-    //public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.ConvertToSerializable());
-    public string SerializeLastFrame()
-    {
-        ViveTripletSerializable vts = frame_t.ConvertToSerializable();
-        if (!IntegrityTest(frame_t, vts))
-            Debug.Log("Incorrect Conversion");
-        return JsonUtility.ToJson(vts);
-    }
-
-    bool IntegrityTest(ViveTriplet vt, ViveTripletSerializable vts)
-    {
-        Matrix4x4[] m = { vt.Item1, vt.Item2, vt.Item3 };
-        Matrix4x4Serializable[] ms = { vts.Item1, vts.Item2, vts.Item3 };
-        for (int i = 0; i < 3; ++i)
-            for (int j = 0; j < 16; ++j)
-                if (m[i][j] != ms[i].At(j))
-                    return false;
-        return true;
-    }
-
+    public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.ConvertToSerializable());
     public void DrawInputTransform(Vector3 origin, Quaternion rotation)
     {
         float length = 0.15f;
@@ -362,6 +336,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void ManipulateCharacter(string response)
     {
+        //Debug.Log(response);
         try
         {
             // 서버 응답을 파싱하여 예측된 관절 위치를 추출합니다.
@@ -374,9 +349,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
                     float.TryParse(stringArray[i + 1].Trim('[', ']', '"').Trim(), out float y) &&
                     float.TryParse(stringArray[i + 2].Trim('[', ']', '"').Trim(), out float z))
                 {
-                    //predictedPositions[index++] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
-                    predictedPositions[index] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
-                    Debug.Log(predictedPositions[index++]);
+                    predictedPositions[index++] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
                 }
                 else
                 {
