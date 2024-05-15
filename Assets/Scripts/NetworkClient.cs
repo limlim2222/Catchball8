@@ -20,8 +20,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     private Matrix4x4 initial_global_matrix_r_M;
     private Matrix4x4 initial_wrist_matrix_l_W;
     private Matrix4x4 initial_wrist_matrix_r_W;
-    [SerializeField] private int[] constraint_joints;
-    [SerializeField] private float constraint_weight;
     [SerializeField] private float constraint_pelvis_weight = 0.7f;
     float prev_frame_pelv_pos;
     private Matrix4x4[] _prev_joints = new Matrix4x4[22];
@@ -42,12 +40,9 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     private Quaternion leftFootInitialRotation; // 왼발 초기 로컬 회전값
     private Quaternion rightFootInitialRotation; // 오른발 초기 로컬 회전값
 
-    private Vector3[] previousFrameJointsPositions = new Vector3[22];
-
     int window_size = 41;
     Queue<ViveTriplet> frames = new Queue<ViveTriplet>();
     ViveTriplet frame_t, frame_t1;
-    List<Matrix4x4> prev_input;
 
     public PhotonView photonView;
     public InputManager inputManager;
@@ -312,26 +307,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         DebugExtension.DebugArrow(origin, rotation * Vector3.right * length, Color.red);
         DebugExtension.DebugArrow(origin, rotation * Vector3.up * length, new Color(0, .6f, 0));
         DebugExtension.DebugArrow(origin, rotation * Vector3.forward * length, Color.blue);
-    }
-
-    private Vector3[] PredictJointsPositions(float[] predictedPositions)
-    {
-        // 예측된 관절 위치 정보를 저장할 배열
-        Vector3[] predictedJointPositions = new Vector3[22];
-
-        // 예측된 관절 위치 정보를 이용하여 predictedJointPositions 배열에 저장
-        for (int i = 0; i < 22; i++)
-        {
-            // 서버로부터 받은 예측된 위치 값을 사용하여 Vector3로 변환하여 저장
-            int startIndex = 3 * i;
-            float x = predictedPositions[startIndex];
-            float y = predictedPositions[startIndex + 1];
-            float z = predictedPositions[startIndex + 2];
-            predictedJointPositions[i] = new Vector3(x, y, z);
-        }
-
-        // 예측된 관절 위치를 담은 배열을 반환합니다.
-        return predictedJointPositions;
     }
 
     void ManipulateCharacter(string response)
