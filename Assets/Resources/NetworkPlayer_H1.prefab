@@ -311,8 +311,6 @@ MonoBehaviour:
   r_controller: {fileID: 4801536499218913597}
   l_tracker: {fileID: 2051193434763415945}
   r_tracker: {fileID: 1337158679529187473}
-  constraint_joints: 
-  constraint_weight: 0
   constraint_pelvis_weight: 0.7
   twimDistance: 0.2
   hmd_zaxis_offset: 0.05

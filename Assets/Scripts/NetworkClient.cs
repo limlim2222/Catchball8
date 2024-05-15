@@ -111,11 +111,11 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         UpdateTrackersOffset();
         CollectFrame();
         LinearSmoothing();
-        modelIntegrationManager.SendFrame(GenerateInput());
+        string t = GenerateInput();
+        Debug.Log(t);
+        modelIntegrationManager.SendFrame(t);
         string response = modelIntegrationManager.ReceiveFrame();
         if (response == DUMMY_RESPONSE) return;
-
-        if (frames.Count < window_size) return;
         if (draw_input_gizmos)
         {
             DrawInputTransform(hmd.position, hmd.rotation);
@@ -125,7 +125,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             DrawInputTransform(l_tracker.position, l_tracker.rotation);
             DrawInputTransform(r_tracker.position, r_tracker.rotation);
         }
-
         PredictLowerPose(response);
     }
 
