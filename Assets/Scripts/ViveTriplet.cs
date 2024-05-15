@@ -7,6 +7,13 @@ public class ViveTriplet
     {
         Item1 = a; Item2 = b; Item3 = c;
     }
+    public override string ToString()
+    {
+        return "{" + Item1.ToString() + ", " + Item2.ToString() + ", " + Item3.ToString() + "}";
+    }
+
+    public ViveTriplet GetColBaseCopy()
+        => new ViveTriplet(Item1.transpose, Item2.transpose, Item3.transpose);
 }
 
 [System.Serializable]
@@ -19,11 +26,19 @@ public class ViveTripletSerializable
     }
     public ViveTripletSerializable(ViveTriplet vt) : this(
         new Matrix4x4Serializable(vt.Item1), new Matrix4x4Serializable(vt.Item2), new Matrix4x4Serializable(vt.Item3)
-    ) {}
+    ) { }
+
+    public override string ToString()
+    {
+        return "{" + Item1.ToString() + ", " + Item2.ToString() + ", " + Item3.ToString() + "}";
+    }
 }
 
 public static class MyViveTriplet
 {
     public static ViveTripletSerializable ConvertToSerializable(this ViveTriplet vt)
         => new ViveTripletSerializable(vt);
+
+    public static ViveTriplet ToColBase(this ViveTriplet vt)
+        => vt.GetColBaseCopy();
 }

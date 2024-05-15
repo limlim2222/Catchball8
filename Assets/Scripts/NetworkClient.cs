@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using RootMotion.FinalIK;
 using Photon.Pun;
 using UnityEngine.Events;
+using System.IO;
+using System.Text;
 
 public partial class NetworkClient : ThingWithAvatarHiarchy
 {
@@ -308,7 +310,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         }
     }
 
-    public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.ConvertToSerializable());
+    public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.GetColBaseCopy().ConvertToSerializable());
 
     public void DrawInputTransform(Vector3 origin, Quaternion rotation)
     {
