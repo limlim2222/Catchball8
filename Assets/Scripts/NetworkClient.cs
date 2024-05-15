@@ -9,6 +9,7 @@ using UnityEngine.XR;
 using System;
 using RootMotion.FinalIK;
 using Photon.Pun;
+using UnityEngine.Events;
 
 public partial class NetworkClient : ThingWithAvatarHiarchy
 {
@@ -53,12 +54,14 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     public PhotonView photonView;
     public InputManager inputManager;
+    public UnityAction OnCompensatedFixedIntervalElapsed;
 
     void Start()
     {
         if (!photonView.IsMine) return;
         inputManager = InputManager.Instance;
         inputManager.OnPinch += Calibrate;
+        OnCompensatedFixedIntervalElapsed += DoOnCompensatedFixedIntervalElapsed;
 
         do_after = false;
         constraint_joints = new int[] { 3, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17 };
@@ -66,7 +69,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         ForceDotNet.Force();
         InputTracking.GetNodeStates(nodeStates);
         StartCoroutine(InitXR());
-        calibrated = false;
         requestSocket = new RequestSocket();
         requestSocket.Connect("tcp://127.0.0.1:3550");
         Debug.Log("server initiated");
@@ -89,41 +91,43 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     void Update()
     {
         if (!photonView.IsMine) return;
-        if (ccdikLeftFoot != null && ccdikRightFoot != null && leftFootTarget != null && rightFootTarget != null)
-        {
-            // 왼발의 위치 업데이트
-            ccdikLeftFoot.solver.IKPosition = leftFootTarget.position;
-            ccdikLeftFoot.solver.target = leftFootTarget;
-            ccdikLeftFoot.solver.Update();
+        if (IsCCDIKAllSet)
+            ApplyFootTrackerIK();
+        CheckFixedIntervalAndDo();
+    }
 
-            // 오른발의 위치 업데이트
-            ccdikRightFoot.solver.IKPosition = rightFootTarget.position;
-            ccdikRightFoot.solver.target = rightFootTarget;
-            ccdikRightFoot.solver.Update();
+    bool IsCCDIKAllSet
+        => ccdikLeftFoot != null && ccdikRightFoot != null && leftFootTarget != null && rightFootTarget != null;
+    void ApplyFootTrackerIK()
+    {
+        UpdateFootPos(ccdikLeftFoot, leftFootTarget);           // 왼발의 위치 업데이트
+        UpdateFootPos(ccdikRightFoot, rightFootTarget);         // 오른발의 위치 업데이트
 
-            // 왼발의 위치 보정
-            Vector3 leftFootTrackerPosition = leftFootTarget.position; // 왼쪽 트레커의 위치를 가져옴
-            leftFootTrackerPosition.y -= 0.05f; // 5cm를 뺌
-            leftFootTarget.position = leftFootTrackerPosition; // 왼쪽 트레커의 위치를 업데이트함
+        leftFootTarget.position -= new Vector3(0, 0.05f, 0);    // 왼발의 위치 보정
+        rightFootTarget.position -= new Vector3(0, 0.05f, 0);   // 오른발의 위치 보정
 
-            // 오른발의 위치 보정
-            Vector3 rightFootTrackerPosition = rightFootTarget.position; // 오른쪽 트레커의 위치를 가져옴
-            rightFootTrackerPosition.y -= 0.05f; // 5cm를 뺌
-            rightFootTarget.position = rightFootTrackerPosition; // 오른쪽 트레커의 위치를 업데이트함
+        leftFootTarget.localRotation                            // 왼발의 회전 업데이트
+            = Quaternion.Lerp(leftFootInitialRotation, leftFootTarget.localRotation, footRotationWeight);
+        rightFootTarget.localRotation                           // 오른발의 회전 업데이트
+            = Quaternion.Lerp(rightFootInitialRotation, rightFootTarget.localRotation, footRotationWeight);
+    }
+    void UpdateFootPos(CCDIK foot, Transform target)
+    {
+        foot.solver.IKPosition = target.position;
+        foot.solver.target = target;
+        foot.solver.Update();
+    }
 
-            // 왼발의 회전 업데이트
-            Quaternion targetRotation = Quaternion.Lerp(leftFootInitialRotation, leftFootTarget.localRotation, footRotationWeight);
-            leftFootTarget.localRotation = targetRotation;
-
-            // 오른발의 회전 업데이트
-            targetRotation = Quaternion.Lerp(rightFootInitialRotation, rightFootTarget.localRotation, footRotationWeight);
-            rightFootTarget.localRotation = targetRotation;
-        }
-
+    void CheckFixedIntervalAndDo()
+    {
         timeAccumulator += Time.deltaTime;
-
-        if (timeAccumulator < fixedDeltaTime) return;
+        if (timeAccumulator >= fixedDeltaTime)
+            OnCompensatedFixedIntervalElapsed.Invoke();
         timeAccumulator -= fixedDeltaTime;
+    }
+
+    void DoOnCompensatedFixedIntervalElapsed()
+    {
         if (!calibrated) return;
         UpdateTrackersOffset();
         CollectFrame();
@@ -180,6 +184,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         Debug.Log("Calibration Start");
         CalibrateHeight();
         CalibrateTrackers();
+        calibrated = true;
     }
 
     void CalibrateHeight()
@@ -236,8 +241,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         initial_wrist_matrix_r_W.SetColumn(0, new Vector4(r_wrist_x.x, r_wrist_x.y, r_wrist_x.z, 0));
         initial_wrist_matrix_r_W.SetColumn(1, new Vector4(r_wrist_y.x, r_wrist_y.y, r_wrist_y.z, 0));
         initial_wrist_matrix_r_W.SetColumn(2, new Vector4(r_wrist_z.x, r_wrist_z.y, r_wrist_z.z, 0));
-
-        calibrated = true;
     }
 
     void UpdateTrackersOffset()
@@ -302,13 +305,11 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             {
                 string cleanString = stringArray[i].Trim('[', ']', '"').Trim();
                 if (float.TryParse(cleanString, out float result))
-                {
                     floatArray[i] = result;
-                }
-                else
-                {
-                    //Debug.LogError("Failed to parse string to float: " + stringArray[i]);
-                }
+                //else
+                //{
+                //    Debug.LogError("Failed to parse string to float: " + stringArray[i]);
+                //}
             }
 
 
@@ -317,12 +318,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
                 _jointTransforms[0].localPosition = _prev_joints[0].GetPosition();
 
                 for (int j = 0; j < 22; j++)
-                {
                     if (_jointTransforms[j] != null) // end effector joint may be null
-                    {
                         _jointTransforms[j].transform.localRotation = _prev_joints[j].rotation;
-                    }
-                }
             }
             else
             {
@@ -348,8 +345,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         {
             Debug.LogError("JSON parsing error: " + e.Message);
         }
-
-
     }
 
     public string SerializeTempInput() => JsonUtility.ToJson(new Matrix4x4SerializableList(temp_input));
