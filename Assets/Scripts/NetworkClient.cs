@@ -1,21 +1,13 @@
-using NetMQ;
-using NetMQ.Sockets;
 using UnityEngine;
-using System.Collections.Generic;
-using AsyncIO;
-using UnityEngine.XR.Management;
-using System.Collections;
-using UnityEngine.XR;
 using System;
+using System.Collections.Generic;
 using RootMotion.FinalIK;
 using Photon.Pun;
 using UnityEngine.Events;
 
 public partial class NetworkClient : ThingWithAvatarHiarchy
 {
-    private List<XRNodeState> nodeStates = new List<XRNodeState>();
     private bool calibrated = false;
-    private RequestSocket requestSocket;
     private string input_list;
 
     [SerializeField]
@@ -54,11 +46,13 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     public PhotonView photonView;
     public InputManager inputManager;
+    public ModelIntegrationManager modelIntegrationManager;
     public UnityAction OnCompensatedFixedIntervalElapsed;
 
     void Start()
     {
         if (!photonView.IsMine) return;
+        modelIntegrationManager = ModelIntegrationManager.Instance;
         inputManager = InputManager.Instance;
         inputManager.OnPinch += Calibrate;
         OnCompensatedFixedIntervalElapsed += DoOnCompensatedFixedIntervalElapsed;
@@ -66,12 +60,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         do_after = false;
         constraint_joints = new int[] { 3, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17 };
         constraint_weight = 0.2f;
-        ForceDotNet.Force();
-        InputTracking.GetNodeStates(nodeStates);
-        StartCoroutine(InitXR());
-        requestSocket = new RequestSocket();
-        requestSocket.Connect("tcp://127.0.0.1:3550");
-        Debug.Log("server initiated");
 
         frames = new List<Matrix4x4>();
         temp_input = new List<Matrix4x4>();
@@ -81,11 +69,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
         leftFootInitialRotation = leftFootTarget.localRotation;
         rightFootInitialRotation = rightFootTarget.localRotation;
-    }
-
-    public IEnumerator InitXR()
-    {
-        yield return XRGeneralSettings.Instance.Manager.InitializeLoader();
     }
 
     void Update()
@@ -121,8 +104,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     void CheckFixedIntervalAndDo()
     {
         timeAccumulator += Time.deltaTime;
-        if (timeAccumulator >= fixedDeltaTime)
-            OnCompensatedFixedIntervalElapsed.Invoke();
+        if (timeAccumulator < fixedDeltaTime) return;
+        OnCompensatedFixedIntervalElapsed.Invoke();
         timeAccumulator -= fixedDeltaTime;
     }
 
@@ -169,13 +152,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             return false;
         Debug.LogWarning("Twim");
         return true;
-    }
-
-    private void OnApplicationQuit()
-    {
-        if (!photonView.IsMine) return;
-        requestSocket.Close();
-        NetMQConfig.Cleanup();
     }
 
     void Calibrate()
@@ -292,8 +268,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void PredictLowerPose()
     {
-        requestSocket.SendFrame(input_list);
-        string response = requestSocket.ReceiveFrameString();
+        modelIntegrationManager.SendFrame(input_list);
+        string response = modelIntegrationManager.ReceiveFrame();
 
         ManipulateCharacter(response);
 
@@ -388,14 +364,10 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             int index = 0;
             for (int i = 0; i < stringArray.Length; i += 3)
             {
-                float x, y, z;
-                if (float.TryParse(stringArray[i].Trim('[', ']', '"').Trim(), out x) &&
-                    float.TryParse(stringArray[i + 1].Trim('[', ']', '"').Trim(), out y) &&
-                    float.TryParse(stringArray[i + 2].Trim('[', ']', '"').Trim(), out z))
-                {
-                    predictedPositions[index] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
-                    index++;
-                }
+                if (float.TryParse(stringArray[i].Trim('[', ']', '"').Trim(), out float x) &&
+                    float.TryParse(stringArray[i + 1].Trim('[', ']', '"').Trim(), out float y) &&
+                    float.TryParse(stringArray[i + 2].Trim('[', ']', '"').Trim(), out float z))
+                    predictedPositions[index++] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
                 else
                 {
                     Debug.LogError("Error parsing float values from response.");
@@ -405,13 +377,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
             // 예측된 위치를 적용합니다.
             foreach (var jointTransform in _jointTransforms)
-            {
                 if (jointTransform != null && index < predictedPositions.Length)
-                {
-                    jointTransform.localPosition = predictedPositions[index];
-                    index++;
-                }
-            }
+                    jointTransform.localPosition = predictedPositions[index++];
         }
         catch (Exception e)
         {

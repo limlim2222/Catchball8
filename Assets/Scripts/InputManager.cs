@@ -5,7 +5,7 @@ using Valve.VR;
 public class InputManager : MonoBehaviour
 {
     public UnityAction OnPinch;
-    public static InputManager Instance;
+    public static InputManager Instance { get; private set; }
 
     private void Start()
     {

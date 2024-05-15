@@ -326,6 +326,7 @@ MonoBehaviour:
   footRotationWeight: 0.5
   photonView: {fileID: 7448655602338619014}
   inputManager: {fileID: 0}
+  modelIntegrationManager: {fileID: 0}
 --- !u!114 &2270564771529872704
 MonoBehaviour:
   m_ObjectHideFlags: 0
