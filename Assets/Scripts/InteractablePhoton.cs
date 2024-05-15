@@ -15,10 +15,11 @@ namespace Valve.VR.InteractionSystem
 {
     public class InteractablePhoton : Interactable
     {
-        private PhotonView photonView; 
-        void Start()
+        private PhotonView photonView;
+        protected override void Start()
         {
             photonView = GetComponent<PhotonView>();
+            base.Start();
         }
 
         protected override void OnHandHoverBegin(Hand hand)

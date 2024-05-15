@@ -324,6 +324,8 @@ MonoBehaviour:
   leftFootTarget: {fileID: 2051193434763415945}
   rightFootTarget: {fileID: 1337158679529187473}
   footRotationWeight: 0.5
+  photonView: {fileID: 7448655602338619014}
+  inputManager: {fileID: 0}
 --- !u!114 &2270564771529872704
 MonoBehaviour:
   m_ObjectHideFlags: 0

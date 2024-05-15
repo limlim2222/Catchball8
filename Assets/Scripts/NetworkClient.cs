@@ -2,22 +2,13 @@ using NetMQ;
 using NetMQ.Sockets;
 using UnityEngine;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Double;
-using Valve.VR;
 using AsyncIO;
 using UnityEngine.XR.Management;
 using System.Collections;
 using UnityEngine.XR;
-using Unity.Mathematics;
-using Newtonsoft.Json;
 using System;
-using System.Threading.Tasks;
-using Unity.VisualScripting;
 using RootMotion.FinalIK;
-using UnityEngine.UIElements;
+using Photon.Pun;
 
 public class NetworkClient : ThingWithAvatarHiarchy
 {
@@ -60,9 +51,15 @@ public class NetworkClient : ThingWithAvatarHiarchy
 
     private Vector3[] previousFrameJointsPositions = new Vector3[22];
 
+    public PhotonView photonView;
+    public InputManager inputManager;
 
     void Start()
     {
+        if (!photonView.IsMine) return;
+        inputManager = InputManager.Instance;
+        inputManager.OnPinch += Calibrate;
+
         do_after = false;
         constraint_joints = new int[] { 3, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17 };
         constraint_weight = 0.2f;
@@ -91,14 +88,7 @@ public class NetworkClient : ThingWithAvatarHiarchy
 
     void Update()
     {
-        if (SteamVR_Actions.default_GrabPinch.GetStateDown(SteamVR_Input_Sources.Any) && !calibrated)
-        {
-            Debug.Log("Calibration Start");
-            CalibrateHeight();
-            CalibrateTrackers();
-
-        }
-
+        if (!photonView.IsMine) return;
         if (ccdikLeftFoot != null && ccdikRightFoot != null && leftFootTarget != null && rightFootTarget != null)
         {
             // 왼발의 위치 업데이트
@@ -132,97 +122,64 @@ public class NetworkClient : ThingWithAvatarHiarchy
 
         timeAccumulator += Time.deltaTime;
 
-        if (timeAccumulator >= fixedDeltaTime)
+        if (timeAccumulator < fixedDeltaTime) return;
+        timeAccumulator -= fixedDeltaTime;
+        if (!calibrated) return;
+        UpdateTrackersOffset();
+        CollectFrame();
+        LinearSmoothing();
+
+        if (frames.Count < window_size) return;
+        if (draw_input_gizmos)
         {
-            if (calibrated)
-            {
-                UpdateTrackersOffset();
-                CollectFrame();
-                LinearSmoothing();
-
-                if (frames.Count >= window_size)
-                {
-                    if (draw_input_gizmos)
-                    {
-                        DrawInputTransform(hmd.position, hmd.rotation);
-                        DrawInputTransform(l_controller.position, l_controller.rotation);
-                        DrawInputTransform(r_controller.position, r_controller.rotation);
-                        // 트래커에도 좌표축 그리기
-                        DrawInputTransform(l_tracker.position, l_tracker.rotation);
-                        DrawInputTransform(r_tracker.position, r_tracker.rotation);
-                    }
-
-                    input_list = GenerateInput();
-
-                    PredictLowerPose();
-                    frames.RemoveRange(0, 3);
-                }
-
-
-            }
-
-            timeAccumulator -= fixedDeltaTime;
+            DrawInputTransform(hmd.position, hmd.rotation);
+            DrawInputTransform(l_controller.position, l_controller.rotation);
+            DrawInputTransform(r_controller.position, r_controller.rotation);
+            // 트래커에도 좌표축 그리기
+            DrawInputTransform(l_tracker.position, l_tracker.rotation);
+            DrawInputTransform(r_tracker.position, r_tracker.rotation);
         }
 
+        input_list = GenerateInput();
 
+        PredictLowerPose();
+        frames.RemoveRange(0, 3);
     }
 
-
-
-    bool CheckControllerDistance(Transform controller)
-    {
-        float controller_dist = Vector3.SqrMagnitude(controller.position - hmd.position);
-
-        // Debug.Log("controller_dist : " + controller_dist);
-
-        // 조건1 : hmd와 controller 사이의 거리
-        // 조건2 : controller의 현재 프레임과 전 프레임 사이 거리
-        if (controller_dist > 1.5f)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
+    // 조건1 : hmd와 controller 사이의 거리
+    // 조건2 : controller의 현재 프레임과 전 프레임 사이 거리
+    bool CheckControllerDistance(Transform controller) => Vector3.SqrMagnitude(controller.position - hmd.position) > 1.5f;
     void LinearSmoothing()
     {
+        // 118 p(t) 115 p(t-1)  112 p(t-2)
         if (CheckControllerDistance(l_controller))
-        {
-            // 118 p(t) 115 p(t-1)  112 p(t-2)
-            Vector3 lerped_pos = Vector3.Lerp(frames[115].GetPosition(), frames[118].GetPosition(), 0.01f);
-            l_controller.position = lerped_pos;
-        }
-
+            l_controller.position = Vector3.Lerp(frames[115].GetPosition(), frames[118].GetPosition(), 0.01f);
+        // 119 p(t) 116 p(t-1) 113 p(t-2)
         if (CheckControllerDistance(r_controller))
-        {
-            // 119 p(t) 116 p(t-1) 113 p(t-2)
-            Vector3 lerped_pos = Vector3.Lerp(frames[116].GetPosition(), frames[119].GetPosition(), 0.01f);
-            r_controller.position = lerped_pos;
-        }
+            r_controller.position = Vector3.Lerp(frames[116].GetPosition(), frames[119].GetPosition(), 0.01f);
     }
 
     bool TwimCheck(float current_pelv_y_pos)
     {
-        float dist = Mathf.Abs(current_pelv_y_pos - prev_frame_pelv_pos);
-
-        if (dist > twimDistance)
-        {
-            Debug.LogWarning("Twim");
-            return true;
-        }
-        else
-        {
+        if (Mathf.Abs(current_pelv_y_pos - prev_frame_pelv_pos) <= twimDistance)
             return false;
-        }
+        Debug.LogWarning("Twim");
+        return true;
     }
 
     private void OnApplicationQuit()
     {
+        if (!photonView.IsMine) return;
         requestSocket.Close();
         NetMQConfig.Cleanup();
+    }
+
+    void Calibrate()
+    {
+        if (calibrated) return;
+        Debug.Log("Calibration Start");
+        CalibrateHeight();
+        CalibrateTrackers();
     }
 
     void CalibrateHeight()
@@ -322,9 +279,7 @@ public class NetworkClient : ThingWithAvatarHiarchy
     public string GenerateInput()
     {
         for (int frame = 0; frame < window_size; frame++)
-        {
             temp_input.Add(frames[frames.Count - window_size + frame]);
-        }
 
         string json_input = SerializeTempInput();
         temp_input.Clear();
