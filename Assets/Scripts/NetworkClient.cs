@@ -133,7 +133,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         }
 
         PredictLowerPose();
-        frames.Dequeue();
     }
 
     // 조건1 : hmd와 controller 사이의 거리
@@ -245,6 +244,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void CollectFrame()
     {
+        if(frames.Count > window_size)
+            frames.Dequeue();
         frame_t1 = frame_t;
         frame_t = new ViveTriplet(
             hmd.localToWorldMatrix,
@@ -310,7 +311,25 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         }
     }
 
-    public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.GetColBaseCopy().ConvertToSerializable());
+    //public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.ConvertToSerializable());
+    public string SerializeLastFrame()
+    {
+        ViveTripletSerializable vts = frame_t.ConvertToSerializable();
+        if (!IntegrityTest(frame_t, vts))
+            Debug.Log("Incorrect Conversion");
+        return JsonUtility.ToJson(vts);
+    }
+
+    bool IntegrityTest(ViveTriplet vt, ViveTripletSerializable vts)
+    {
+        Matrix4x4[] m = { vt.Item1, vt.Item2, vt.Item3 };
+        Matrix4x4Serializable[] ms = { vts.Item1, vts.Item2, vts.Item3 };
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 16; ++j)
+                if (m[i][j] != ms[i].At(j))
+                    return false;
+        return true;
+    }
 
     public void DrawInputTransform(Vector3 origin, Quaternion rotation)
     {
@@ -354,7 +373,11 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
                 if (float.TryParse(stringArray[i].Trim('[', ']', '"').Trim(), out float x) &&
                     float.TryParse(stringArray[i + 1].Trim('[', ']', '"').Trim(), out float y) &&
                     float.TryParse(stringArray[i + 2].Trim('[', ']', '"').Trim(), out float z))
-                    predictedPositions[index++] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
+                {
+                    //predictedPositions[index++] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
+                    predictedPositions[index] = new Vector3(x, y, z); // 예측된 관절 위치를 Vector3로 변환하여 배열에 저장
+                    Debug.Log(predictedPositions[index++]);
+                }
                 else
                 {
                     Debug.LogError("Error parsing float values from response.");

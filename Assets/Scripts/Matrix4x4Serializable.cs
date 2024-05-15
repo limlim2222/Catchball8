@@ -21,4 +21,11 @@ public class Matrix4x4Serializable
         }
         return s + " ]";
     }
+
+    public float At(int index)
+    {
+        if (index >= data.Length)
+            return float.MinValue;
+        return data[index];
+    }
 }
