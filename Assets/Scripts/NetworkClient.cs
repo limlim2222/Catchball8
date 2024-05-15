@@ -10,7 +10,7 @@ using System;
 using RootMotion.FinalIK;
 using Photon.Pun;
 
-public class NetworkClient : ThingWithAvatarHiarchy
+public partial class NetworkClient : ThingWithAvatarHiarchy
 {
     private List<XRNodeState> nodeStates = new List<XRNodeState>();
     private bool calibrated = false;
@@ -352,39 +352,7 @@ public class NetworkClient : ThingWithAvatarHiarchy
 
     }
 
-    [System.Serializable]
-    public class Matrix4x4List
-    {
-        public List<Matrix4x4Serializable> matrixList;
-    }
-
-    [System.Serializable]
-    public class Matrix4x4Serializable
-    {
-        public float[] data = new float[16];
-    }
-
-    public string SerializeTempInput()
-    {
-        Matrix4x4List matrixList = new Matrix4x4List();
-        matrixList.matrixList = new List<Matrix4x4Serializable>();
-
-        foreach (Matrix4x4 matrix in temp_input)
-        {
-            Matrix4x4Serializable data = new Matrix4x4Serializable();
-
-            for (int i = 0; i < 16; i++)
-            {
-                data.data[i] = matrix[i];
-            }
-
-            matrixList.matrixList.Add(data);
-        }
-
-        string json = JsonUtility.ToJson(matrixList);
-        return json;
-    }
-
+    public string SerializeTempInput() => JsonUtility.ToJson(new Matrix4x4SerializableList(temp_input));
 
     public void DrawInputTransform(Vector3 origin, Quaternion rotation)
     {
