@@ -30,7 +30,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     [SerializeField] float l_controller_xaxis_offset = 0.15f;
     [SerializeField] float r_controller_xaxis_offset = 0.15f;
     [SerializeField] bool draw_input_gizmos = true;
-    int window_size = 123;
 
     public CCDIK ccdikLeftFoot; // 왼발 CCDIK
     public CCDIK ccdikRightFoot; // 오른발 CCDIK
@@ -43,6 +42,11 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
     private Quaternion rightFootInitialRotation; // 오른발 초기 로컬 회전값
 
     private Vector3[] previousFrameJointsPositions = new Vector3[22];
+
+    int window_size = 41;
+    Queue<ViveTriplet> frames = new Queue<ViveTriplet>();
+    ViveTriplet frame_t, frame_t1;
+    List<Matrix4x4> prev_input;
 
     public PhotonView photonView;
     public InputManager inputManager;
@@ -60,9 +64,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         do_after = false;
         constraint_joints = new int[] { 3, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17 };
         constraint_weight = 0.2f;
-
-        frames = new List<Matrix4x4>();
-        temp_input = new List<Matrix4x4>();
 
         ccdikLeftFoot = GetComponent<CCDIK>();
         ccdikRightFoot = GetComponent<CCDIK>();
@@ -115,6 +116,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         UpdateTrackersOffset();
         CollectFrame();
         LinearSmoothing();
+        input_list = GenerateInput();
 
         if (frames.Count < window_size) return;
         if (draw_input_gizmos)
@@ -127,23 +129,22 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             DrawInputTransform(r_tracker.position, r_tracker.rotation);
         }
 
-        input_list = GenerateInput();
-
         PredictLowerPose();
-        frames.RemoveRange(0, 3);
+        frames.Dequeue();
     }
 
     // 조건1 : hmd와 controller 사이의 거리
     // 조건2 : controller의 현재 프레임과 전 프레임 사이 거리
-    bool CheckControllerDistance(Transform controller) => Vector3.SqrMagnitude(controller.position - hmd.position) > 1.5f;
+    bool CheckControllerDistance(Transform controller)
+        => Vector3.SqrMagnitude(controller.position - hmd.position) > 1.5f;
     void LinearSmoothing()
     {
-        // 118 p(t) 115 p(t-1)  112 p(t-2)
         if (CheckControllerDistance(l_controller))
-            l_controller.position = Vector3.Lerp(frames[115].GetPosition(), frames[118].GetPosition(), 0.01f);
-        // 119 p(t) 116 p(t-1) 113 p(t-2)
+            l_controller.position
+                = Vector3.Lerp(frame_t1.Item2.GetPosition(), frame_t.Item2.GetPosition(), 0.01f);
         if (CheckControllerDistance(r_controller))
-            r_controller.position = Vector3.Lerp(frames[116].GetPosition(), frames[119].GetPosition(), 0.01f);
+            r_controller.position
+                = Vector3.Lerp(frame_t1.Item3.GetPosition(), frame_t.Item3.GetPosition(), 0.01f);
     }
 
     bool TwimCheck(float current_pelv_y_pos)
@@ -221,10 +222,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void UpdateTrackersOffset()
     {
-        //// XYZaxis_wt = MT * XYZaxis_ct
-        /// Pre-Multiplication
-        // Matrix4x4 l_matrix = initial_wrist_matrix_l_W * initial_global_matrix_l_M.transpose * Matrix4x4.TRS(l_controller.localPosition, l_controller.localRotation, Vector3.one);
-        // Matrix4x4 r_matrix = initial_wrist_matrix_r_W * initial_global_matrix_r_M.transpose * Matrix4x4.TRS(r_controller.localPosition, r_controller.localRotation, Vector3.one);
         /// Post-Multiplication
         Matrix4x4 l_matrix = Matrix4x4.TRS(l_controller.localPosition, l_controller.localRotation, Vector3.one) * initial_global_matrix_l_M.transpose * initial_wrist_matrix_l_W;
         Matrix4x4 r_matrix = Matrix4x4.TRS(r_controller.localPosition, r_controller.localRotation, Vector3.one) * initial_global_matrix_r_M.transpose * initial_wrist_matrix_r_W;
@@ -243,32 +240,27 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         r_tracker.Rotate(Vector3.right, 90); // Rotate around x axis
     }
 
-    List<Matrix4x4> frames;
     void CollectFrame()
     {
-        //Debug.Log(hmd.position + l_controller.position + r_controller.position);
-        frames.Add(hmd.localToWorldMatrix);
-        frames.Add(l_controller.localToWorldMatrix);
-        frames.Add(r_controller.localToWorldMatrix);
+        frame_t1 = frame_t;
+        frame_t = new ViveTriplet(
+            hmd.localToWorldMatrix,
+            l_controller.localToWorldMatrix,
+            r_controller.localToWorldMatrix
+        );
+        frames.Enqueue(frame_t);
     }
-
-
-    List<Matrix4x4> temp_input = new List<Matrix4x4>();
-    List<Matrix4x4> prev_input = new List<Matrix4x4>();
-    public string GenerateInput()
-    {
-        for (int frame = 0; frame < window_size; frame++)
-            temp_input.Add(frames[frames.Count - window_size + frame]);
-
-        string json_input = SerializeTempInput();
-        temp_input.Clear();
-        //Debug.Log("json input : " + json_input);
-        return json_input;
-    }
+    public string GenerateInput() => SerializeLastFrame();
 
     void PredictLowerPose()
     {
         modelIntegrationManager.SendFrame(input_list);
+        if (frames.Count < window_size)
+        {
+            modelIntegrationManager.ReceiveFrame();
+            return;
+        }
+
         string response = modelIntegrationManager.ReceiveFrame();
 
         ManipulateCharacter(response);
@@ -278,15 +270,8 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
             string[] stringArray = response.Split(',');
             float[] floatArray = new float[stringArray.Length];
             for (int i = 0; i < stringArray.Length; i++)
-            {
-                string cleanString = stringArray[i].Trim('[', ']', '"').Trim();
-                if (float.TryParse(cleanString, out float result))
+                if (float.TryParse(stringArray[i].Trim('[', ']', '"').Trim(), out float result))
                     floatArray[i] = result;
-                //else
-                //{
-                //    Debug.LogError("Failed to parse string to float: " + stringArray[i]);
-                //}
-            }
 
 
             if (do_after && TwimCheck(floatArray[1]))
@@ -323,7 +308,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         }
     }
 
-    public string SerializeTempInput() => JsonUtility.ToJson(new Matrix4x4SerializableList(temp_input));
+    public string SerializeLastFrame() => JsonUtility.ToJson(frame_t.ConvertToSerializable());
 
     public void DrawInputTransform(Vector3 origin, Quaternion rotation)
     {

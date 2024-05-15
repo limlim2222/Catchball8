@@ -16,9 +16,17 @@ public class ModelIntegrationManager : MonoBehaviour
 
     private void Start()
     {
-        if (Instance) Destroy(this);
-        else Instance = this;
-        SetupServer();
+        if (Instance)
+        {
+            Destroy(this);
+            return;
+        }
+        else
+        {
+            Instance = this;
+            DontDestroyOnLoad(this);
+            SetupServer();
+        }
     }
 
     private void OnApplicationQuit()

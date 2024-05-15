@@ -10,4 +10,15 @@ public class Matrix4x4Serializable
         for (int i = 0; i < 16; i++)
             data[i] = matrix[i];
     }
+    public override string ToString()
+    {
+        string s = "[ ";
+        for (int i = 0; i < 16; i++)
+        {
+            if(i > 0)
+                s += ", ";
+            s += data[i];
+        }
+        return s + " ]";
+    }
 }
