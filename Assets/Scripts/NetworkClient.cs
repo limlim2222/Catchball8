@@ -237,7 +237,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void CollectFrame()
     {
-        if(frames.Count > window_size)
+        if(frames.Count >= window_size)
             frames.Dequeue();
         frame_t1 = frame_t;
         frame_t = new ViveTriplet(

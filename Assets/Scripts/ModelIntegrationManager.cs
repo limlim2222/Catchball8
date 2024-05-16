@@ -14,7 +14,7 @@ public class ModelIntegrationManager : MonoBehaviour
     private RequestSocket requestSocket;
     public static ModelIntegrationManager Instance { get; private set; }
 
-    private void Start()
+    private void Awake()
     {
         if (Instance)
         {
