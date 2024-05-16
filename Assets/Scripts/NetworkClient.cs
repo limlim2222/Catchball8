@@ -251,7 +251,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
 
     void PredictLowerPose(string response)
     {
-        ManipulateCharacter(response);
+        //ManipulateCharacter(response);
 
         try
         {
