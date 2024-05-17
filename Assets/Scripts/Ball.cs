@@ -1,49 +1,46 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
-public class Ball : MonoBehaviour
+public class Ball : MonoBehaviour, IMountable
 {
     public float waitTime = 10.0f;
-    public float maxSpeed = 6.0f; // 최대 속도
+    public float maxSpeed = 6.0f;
     public float accelerationRate = 0.2f;
 
-    private Coroutine myCoroutine = null;
+    private Coroutine ballReturnCoroutine = null;
 
     private Rigidbody BallRigidbody = null;
-    private Transform BallTransform = null;
 
+    [SerializeField] private VRHand whoAmIMounted;
 
     private Vector3 BallOriginPosition = Vector3.zero;
     private Quaternion BallOriginRotation = Quaternion.identity;
 
-    private bool shouldMove = false;
+    private Vector3 lastPos;
+    [SerializeField] private float velocityMultiplier = 1f;
+
+    bool shouldMove = false;
 
     // Start is called before the first frame update
     void Start()
     {
         BallRigidbody = GetComponent<Rigidbody>();
-        BallTransform = GetComponent<Transform>();
 
-        //초기값
-        BallOriginPosition = BallTransform.position;
-        BallOriginRotation = BallTransform.rotation;
+        BallOriginPosition = transform.position;
+        BallOriginRotation = transform.rotation;
 
         BallRigidbody.velocity = Vector3.zero;
         BallRigidbody.angularVelocity = Vector3.zero;
-
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (shouldMove)
+        if(whoAmIMounted)
         {
-            if (BallRigidbody.velocity.magnitude < maxSpeed)
-            {
-                BallRigidbody.velocity += BallTransform.forward * accelerationRate * Time.deltaTime;
-            }
+            Transform t = whoAmIMounted.MountTransform;
+            lastPos = transform.position = t.position;
+            transform.rotation = t.rotation;
         }
     }
 
@@ -57,39 +54,57 @@ public class Ball : MonoBehaviour
 
         else if (!collision.gameObject.CompareTag("Interactable") && !collision.gameObject.CompareTag("Box"))
         {
-            if (myCoroutine == null)
-            {
-                myCoroutine = StartCoroutine(RetrunObject());
-            }
+            if (ballReturnCoroutine != null)
+                StopCoroutine(ballReturnCoroutine);
+            ballReturnCoroutine = StartCoroutine(ReturnObject());
         }
 
         else if (collision.gameObject.CompareTag("Interactable") && collision.gameObject.CompareTag("Duck"))
         {
-            if (myCoroutine == null)
-            {
-                myCoroutine = StartCoroutine(RetrunObject());
-            }
+            if (ballReturnCoroutine != null)
+                StopCoroutine(ballReturnCoroutine);
+            ballReturnCoroutine = StartCoroutine(ReturnObject());
         }
 
     }
 
-
-
-    IEnumerator RetrunObject()
+    IEnumerator ReturnObject()
     {
         yield return new WaitForSeconds(waitTime);
+
+        ToggleKinetics(false);
 
         BallRigidbody.velocity = Vector3.zero;
         BallRigidbody.angularVelocity = Vector3.zero;
 
 
-        BallTransform.position = BallOriginPosition;
-        BallTransform.rotation = BallOriginRotation;
+        transform.position = BallOriginPosition;
+        transform.rotation = BallOriginRotation;
 
-        myCoroutine = null;
+        ballReturnCoroutine = null;
 
         yield return null;
-
     }
 
+    void ToggleKinetics(bool activate)
+    {
+        BallRigidbody.useGravity = activate && true;
+        BallRigidbody.isKinematic = activate && false;
+    }
+
+    void IMountable.MountTo(VRHand hand)
+    {
+        whoAmIMounted = hand;
+        ToggleKinetics(false);
+    }
+
+    void IMountable.Unmount()
+    {
+        whoAmIMounted = null;
+        ToggleKinetics(true);
+        BallRigidbody.AddForce((transform.position - lastPos) * velocityMultiplier);
+    }
+
+    public bool AmIYourMount(VRHand vRHand)
+        => whoAmIMounted == vRHand;
 }

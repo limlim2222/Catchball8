@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using RootMotion.FinalIK;
 using Photon.Pun;
 using UnityEngine.Events;
-using System.IO;
-using System.Text;
 
 public partial class NetworkClient : ThingWithAvatarHiarchy
 {
@@ -55,7 +53,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         if (!photonView.IsMine) return;
         modelIntegrationManager = ModelIntegrationManager.Instance;
         inputManager = InputManager.Instance;
-        inputManager.OnPinch += Calibrate;
+        inputManager.OnPinchDownAny += Calibrate;
         OnCompensatedFixedIntervalElapsed += DoOnCompensatedFixedIntervalElapsed;
 
         do_after = false;
@@ -112,7 +110,6 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         CollectFrame();
         LinearSmoothing();
         string t = GenerateInput();
-        Debug.Log(t);
         modelIntegrationManager.SendFrame(t);
         string response = modelIntegrationManager.ReceiveFrame();
         if (response == DUMMY_RESPONSE) return;
@@ -134,6 +131,7 @@ public partial class NetworkClient : ThingWithAvatarHiarchy
         => Vector3.SqrMagnitude(controller.position - hmd.position) > 1.5f;
     void LinearSmoothing()
     {
+        if (!frame_t1) return;
         if (CheckControllerDistance(l_controller))
             l_controller.position
                 = Vector3.Lerp(frame_t1.Item2.GetPosition(), frame_t.Item2.GetPosition(), 0.01f);

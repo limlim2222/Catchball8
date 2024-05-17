@@ -1,107 +1,65 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Valve.VR;
 
 public class VRHand : MonoBehaviour
 {
-    public SteamVR_Action_Boolean GripGrap;
+    [SerializeField] IMountable mountedBall = null;
 
-    private SteamVR_Behaviour_Pose myHand = null;
-
-    private Transform myTransform = null;
-    private Rigidbody myRigidbody = null;
-
-    private Rigidbody currentRigidbody = null;
-
-    private List<Rigidbody> contactRigidbodies = new List<Rigidbody>();
+    InputManager im;
+    [SerializeField] private bool isLeft;
+    [SerializeField] Transform mountTransform;
+    internal Transform MountTransform => mountTransform;
 
     // Start is called before the first frame update
     void Start()
     {
-        myHand = GetComponent<SteamVR_Behaviour_Pose>();
-        myTransform = GetComponent<Transform>();
-        myRigidbody = GetComponent<Rigidbody>();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        if(GripGrap.GetStateDown(myHand.inputSource))
+        im = InputManager.Instance;
+        if (isLeft)
         {
-            Pickup();
+            im.OnPinchDownLeft += Pickup;
+            im.OnPinchReleaseLeft += Drop;
         }
-
-        if(GripGrap.GetStateUp(myHand.inputSource))
+        else
         {
-            Drop();
+            im.OnPinchDownRight += Pickup;
+            im.OnPinchReleaseRight += Drop;
         }
     }
 
     public void Pickup()
     {
-        currentRigidbody = GetNearestRigidBody();
+        Debug.Log("Pickup called");
+        mountedBall = GetAdjacentBall();
 
-        if (currentRigidbody == null)
+        if (mountedBall == null)
             return;
+        Debug.Log("Adjacent Ball Found and that was: " + mountedBall);
 
-        currentRigidbody.useGravity = false;
-        currentRigidbody.isKinematic = true;
-
-        currentRigidbody.transform.position = myTransform.position;
-        currentRigidbody.transform.parent = myTransform;
+        mountedBall.MountTo(this);
     }
 
     public void Drop()
     {
-        if (currentRigidbody == null)
+        Debug.Log("Drop called");
+        if (mountedBall == null)
             return;
-
-        currentRigidbody.useGravity = true;
-        currentRigidbody.isKinematic = false;
-
-        currentRigidbody.transform.parent = null;
-
-        currentRigidbody.velocity = myHand.GetVelocity();
-        currentRigidbody.angularVelocity = myHand.GetAngularVelocity();
-
-        currentRigidbody = null;
+        if (!mountedBall.AmIYourMount(this))
+            return;
+        Debug.Log("Mounted Ball was: " + mountedBall);
+        mountedBall.Unmount();
+        mountedBall = null;
     }
 
-    private void OnTriggerEnter(Collider other)
+    private IMountable GetAdjacentBall()
     {
-        if(other.gameObject.CompareTag("Interactable"))
-        {
-            contactRigidbodies.Add(other.gameObject.GetComponent<Rigidbody>());
-        }
+        if(Physics.Raycast(transform.position, -transform.up, out RaycastHit hit))
+            return hit.transform.gameObject.GetComponent<IMountable>();
+        return null;
     }
 
-    private void OnTriggerExit(Collider other)
+    private void OnDrawGizmos()
     {
-        if(other.gameObject.CompareTag("Interactable"))
-        {
-            contactRigidbodies.Remove(other.gameObject.GetComponent<Rigidbody>());
-        }
-    }
-
-    private Rigidbody GetNearestRigidBody()
-    {
-        Rigidbody nearestRigidBody = null;
-
-        float minDistance = float.MaxValue;
-        float distance = 0.0f;
-
-        foreach(Rigidbody rigidbody in contactRigidbodies)
-        {
-            distance = (rigidbody.transform.position - myTransform.position).sqrMagnitude;
-
-            if(distance < minDistance)
-            {
-                minDistance = distance;
-                nearestRigidBody = rigidbody;
-            }
-        }
-
-        return nearestRigidBody;
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, transform.position - transform.up * 300);
     }
 }

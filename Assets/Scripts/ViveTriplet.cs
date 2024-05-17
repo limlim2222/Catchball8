@@ -14,6 +14,8 @@ public class ViveTriplet
 
     public ViveTriplet GetColBaseCopy()
         => new ViveTriplet(Item1.transpose, Item2.transpose, Item3.transpose);
+
+    public static implicit operator bool(ViveTriplet self) => self != null;
 }
 
 [System.Serializable]
