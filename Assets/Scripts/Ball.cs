@@ -1,14 +1,16 @@
 using System.Collections;
 using UnityEngine;
+using Photon.Pun;
 
 public class Ball : MonoBehaviour, IMountable
 {
+    [SerializeField] PhotonView pv;
+
     public float waitTime = 10.0f;
     public float maxSpeed = 6.0f;
     public float accelerationRate = 0.2f;
 
     private Coroutine ballReturnCoroutine = null;
-
     private Rigidbody BallRigidbody = null;
 
     [SerializeField] private VRHand whoAmIMounted;
@@ -24,11 +26,10 @@ public class Ball : MonoBehaviour, IMountable
     // Start is called before the first frame update
     void Start()
     {
+        if (!pv.IsMine) return;
         BallRigidbody = GetComponent<Rigidbody>();
-
         BallOriginPosition = transform.position;
         BallOriginRotation = transform.rotation;
-
         BallRigidbody.velocity = Vector3.zero;
         BallRigidbody.angularVelocity = Vector3.zero;
     }

@@ -6,26 +6,35 @@ using Photon.Pun;
 
 public class NetworkPlayerSpawner : MonoBehaviourPunCallbacks
 {
-    private GameObject spawnedPlayerPrefab;
-    public GameObject spawnedBallPrefab1;
-    public GameObject spawnedBallPrefab2;
-    public GameObject spawnedBallPrefab3;
+    [SerializeField] GameObject PlayerToSpawn;
+    [SerializeField] GameObject BallPrefab1ToSpawn;
+    [SerializeField] GameObject BallPrefab2ToSpawn;
+    [SerializeField] GameObject BallPrefab3ToSpawn;
 
-    
+    [SerializeField] Transform ballSpawnPosition1;
+    [SerializeField] Transform ballSpawnPosition2;
+    [SerializeField] Transform ballSpawnPosition3;
 
+    GameObject spawnedPlayerPrefab;
+    GameObject spawnedBallPrefab1;
+    GameObject spawnedBallPrefab2;
+    GameObject spawnedBallPrefab3;
 
     public override void OnJoinedRoom()
     {
         base.OnJoinedRoom();
-        spawnedPlayerPrefab = PhotonNetwork.Instantiate("NetworkPlayer_H1" + "", transform.position, transform.rotation);
-        spawnedBallPrefab1 = PhotonNetwork.Instantiate("ball1" + "", spawnedBallPrefab1.transform.position, spawnedBallPrefab1.transform.rotation);
-        spawnedBallPrefab2 = PhotonNetwork.Instantiate("ball2" + "", spawnedBallPrefab2.transform.position, spawnedBallPrefab2.transform.rotation);
-        spawnedBallPrefab3 = PhotonNetwork.Instantiate("ball3" + "", spawnedBallPrefab3.transform.position, spawnedBallPrefab3.transform.rotation);
+        spawnedPlayerPrefab = PhotonNetwork.Instantiate(PlayerToSpawn.name, Vector3.zero, Quaternion.identity);
+        spawnedBallPrefab1 = PhotonNetwork.Instantiate(BallPrefab1ToSpawn.name, ballSpawnPosition1.position, ballSpawnPosition1.rotation);
+        spawnedBallPrefab2 = PhotonNetwork.Instantiate(BallPrefab2ToSpawn.name, ballSpawnPosition2.position, ballSpawnPosition2.rotation);
+        spawnedBallPrefab3 = PhotonNetwork.Instantiate(BallPrefab3ToSpawn.name, ballSpawnPosition3.position, ballSpawnPosition3.rotation);
     }
 
     public override void OnLeftRoom()
     {
         base.OnLeftRoom();
         PhotonNetwork.Destroy(spawnedPlayerPrefab);
+        PhotonNetwork.Destroy(spawnedBallPrefab1);
+        PhotonNetwork.Destroy(spawnedBallPrefab2);
+        PhotonNetwork.Destroy(spawnedBallPrefab3);
     }
 }

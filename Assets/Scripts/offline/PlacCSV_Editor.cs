@@ -1,4 +1,8 @@
-﻿using System.Collections;
+﻿/*
+ * commented out since editor script should be in ./Assets/Editor whilst this script is in ./Assets/Scripts/offline
+ * without this commenting, build fails
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
@@ -35,3 +39,5 @@ public class PlacCSV_Editor : Editor
         }
     }
 }
+
+*/
