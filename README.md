@@ -17,6 +17,7 @@ VR 사용자 실험 시스템의 구현 코드이다.
 
 
 **실험 디자인**
+
 *독립 변수*
 
 아바타 외형
@@ -37,12 +38,14 @@ VR 사용자 실험 시스템의 구현 코드이다.
 
 
 **시스템 구현**
+
 *개발 환경*
 * Engine: Unity
 * VR 장비: HTC Vive Pro
 * 입력 장치: Vive Controller, Vive Tracker
 * IK 시스템: Final IK
-  
+
+
 *주요 구현 특징*
 * 아바타 외형과 제어 로직 분리 구조
 * 외형 변경 시에도 동일한 제어 로직 사용 가능
@@ -53,10 +56,12 @@ VR 사용자 실험 시스템의 구현 코드이다.
 * 실험 데이터 자동 기록
 * 조건별 체화감 점수 및 실험 로그 저장
 
+
 *코드 구조*
 * AvatarController : 아바타 상태 및 움직임 정확도 조건 관리
 * TrackingModeSwitcher : IK / Motion Capture 조건 전환
 * TaskController : 버튼 누르기, 장애물 회피 등 작업 로직 처리
+
 
 *체화감 측정 요소*
 * 소유감 (Ownership)
@@ -64,6 +69,7 @@ VR 사용자 실험 시스템의 구현 코드이다.
 * 위치감 (Self-location)
 7점 Likert 척도 설문
 Repeated Measures ANOVA 및 사후 분석 수행
+
 
 *연구 기여*
 * VR 아바타 외형과 움직임 정확도의 영향을 작업 맥락별로 분석
